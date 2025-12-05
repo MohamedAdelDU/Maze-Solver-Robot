@@ -4,3 +4,11 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Local files
+.local/
+attached_assets/
+replit.md
+
+# Example files
+client/src/components/examples/
