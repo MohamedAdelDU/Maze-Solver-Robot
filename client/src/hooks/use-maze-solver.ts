@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { Position, CellState, AlgorithmState, MazeStats, Direction, MazePreset } from '@/lib/maze-types';
+import type { Position, CellState, AlgorithmState, MazeStats, Direction, MazePreset, DataStructureType } from '@/lib/maze-types';
 import { DIRECTIONS } from '@/lib/maze-types';
 import { MAZE_PRESETS, createEmptyGrid } from '@/lib/maze-presets';
 
@@ -12,7 +12,10 @@ export function useMazeSolver(initialSize = 10) {
   );
   const [start, setStart] = useState<Position>({ x: 0, y: 0 });
   const [end, setEnd] = useState<Position>({ x: initialSize - 1, y: initialSize - 1 });
+  const [dataStructureType, setDataStructureType] = useState<DataStructureType>('stack');
   const [stack, setStack] = useState<Position[]>([]);
+  const [queue, setQueue] = useState<Position[]>([]);
+  const [linkedList, setLinkedList] = useState<Position[]>([]);
   const [algorithmState, setAlgorithmState] = useState<AlgorithmState>('idle');
   const [speed, setSpeed] = useState(300);
   const [stats, setStats] = useState<MazeStats>({
@@ -74,6 +77,8 @@ export function useMazeSolver(initialSize = 10) {
     );
     setCellStates(newCellStates);
     setStack([]);
+    setQueue([]);
+    setLinkedList([]);
     visitedRef.current = new Set();
     setStats({
       stepsTaken: 0,
@@ -87,7 +92,8 @@ export function useMazeSolver(initialSize = 10) {
     setAlgorithmState('idle');
   }, [grid, start, end]);
 
-  const step = useCallback((): boolean => {
+  // Step function for Stack (DFS)
+  const stepStack = useCallback((): boolean => {
     if (stack.length === 0) {
       setAlgorithmState('no-path');
       return false;
@@ -167,16 +173,185 @@ export function useMazeSolver(initialSize = 10) {
     }
   }, [stack, end, start, getNeighbors]);
 
+  // Step function for Queue (BFS)
+  const stepQueue = useCallback((): boolean => {
+    if (queue.length === 0) {
+      setAlgorithmState('no-path');
+      return false;
+    }
+
+    const current = queue[0]; // Dequeue from front
+    
+    if (current.x === end.x && current.y === end.y) {
+      setCellStates(prev => {
+        const newStates = prev.map(row => [...row]);
+        queue.forEach(pos => {
+          if (!(pos.x === start.x && pos.y === start.y) && !(pos.x === end.x && pos.y === end.y)) {
+            newStates[pos.y][pos.x] = 'path';
+          }
+        });
+        return newStates;
+      });
+      setStats(prev => ({ ...prev, pathLength: queue.length }));
+      setAlgorithmState('finished');
+      return false;
+    }
+
+    const neighbors = getNeighbors(current);
+    
+    // Enqueue all neighbors
+    const newQueue = queue.slice(1); // Remove current (dequeue)
+    neighbors.forEach(neighbor => {
+      if (!visitedRef.current.has(posToKey(neighbor))) {
+        visitedRef.current.add(posToKey(neighbor));
+        newQueue.push(neighbor); // Enqueue at rear
+      }
+    });
+    
+    setQueue(newQueue);
+    
+    setCellStates(prev => {
+      const newStates = prev.map(row => [...row]);
+      if (!(current.x === start.x && current.y === start.y)) {
+        newStates[current.y][current.x] = 'visited';
+      }
+      if (newQueue.length > 0) {
+        const next = newQueue[0];
+        if (!(next.x === end.x && next.y === end.y)) {
+          newStates[next.y][next.x] = 'current';
+        }
+      }
+      return newStates;
+    });
+    
+    setStats(prev => ({
+      ...prev,
+      stepsTaken: prev.stepsTaken + 1,
+      cellsVisited: visitedRef.current.size,
+      timeElapsed: Date.now() - startTimeRef.current,
+    }));
+    
+    return newQueue.length > 0;
+  }, [queue, end, start, getNeighbors]);
+
+  // Step function for Linked List (Sequential traversal)
+  const stepLinkedList = useCallback((): boolean => {
+    if (linkedList.length === 0) {
+      setAlgorithmState('no-path');
+      return false;
+    }
+
+    const current = linkedList[linkedList.length - 1]; // Last node
+    
+    if (current.x === end.x && current.y === end.y) {
+      setCellStates(prev => {
+        const newStates = prev.map(row => [...row]);
+        linkedList.forEach(pos => {
+          if (!(pos.x === start.x && pos.y === start.y) && !(pos.x === end.x && pos.y === end.y)) {
+            newStates[pos.y][pos.x] = 'path';
+          }
+        });
+        return newStates;
+      });
+      setStats(prev => ({ ...prev, pathLength: linkedList.length }));
+      setAlgorithmState('finished');
+      return false;
+    }
+
+    const neighbors = getNeighbors(current);
+    
+    if (neighbors.length > 0) {
+      const next = neighbors[0];
+      visitedRef.current.add(posToKey(next));
+      
+      const newLinkedList = [...linkedList, next]; // Add to tail
+      setLinkedList(newLinkedList);
+      
+      setCellStates(prev => {
+        const newStates = prev.map(row => [...row]);
+        if (!(current.x === start.x && current.y === start.y)) {
+          newStates[current.y][current.x] = 'visited';
+        }
+        if (!(next.x === end.x && next.y === end.y)) {
+          newStates[next.y][next.x] = 'current';
+        }
+        return newStates;
+      });
+      
+      setStats(prev => ({
+        ...prev,
+        stepsTaken: prev.stepsTaken + 1,
+        cellsVisited: visitedRef.current.size,
+        timeElapsed: Date.now() - startTimeRef.current,
+      }));
+      
+      return true;
+    } else {
+      // Backtrack by removing last node
+      const newLinkedList = linkedList.slice(0, -1);
+      setLinkedList(newLinkedList);
+      
+      setCellStates(prev => {
+        const newStates = prev.map(row => [...row]);
+        if (!(current.x === start.x && current.y === start.y) && !(current.x === end.x && current.y === end.y)) {
+          newStates[current.y][current.x] = 'backtracked';
+        }
+        if (newLinkedList.length > 0) {
+          const prev_pos = newLinkedList[newLinkedList.length - 1];
+          if (!(prev_pos.x === start.x && prev_pos.y === start.y) && !(prev_pos.x === end.x && prev_pos.y === end.y)) {
+            newStates[prev_pos.y][prev_pos.x] = 'current';
+          }
+        }
+        return newStates;
+      });
+      
+      setStats(prev => ({
+        ...prev,
+        stepsTaken: prev.stepsTaken + 1,
+        backtracks: prev.backtracks + 1,
+        timeElapsed: Date.now() - startTimeRef.current,
+      }));
+      
+      return newLinkedList.length > 0;
+    }
+  }, [linkedList, end, start, getNeighbors]);
+
+  // Main step function that routes to the correct algorithm
+  const step = useCallback((): boolean => {
+    switch (dataStructureType) {
+      case 'stack':
+        return stepStack();
+      case 'queue':
+        return stepQueue();
+      case 'linkedlist':
+        return stepLinkedList();
+      default:
+        return stepStack();
+    }
+  }, [dataStructureType, stepStack, stepQueue, stepLinkedList]);
+
   const startAlgorithm = useCallback(() => {
     if (algorithmState === 'idle') {
       resetVisualization();
       visitedRef.current.add(posToKey(start));
-      setStack([start]);
       startTimeRef.current = Date.now();
       setStats(prev => ({ ...prev, cellsVisited: 1 }));
+      
+      // Initialize based on data structure type
+      switch (dataStructureType) {
+        case 'stack':
+          setStack([start]);
+          break;
+        case 'queue':
+          setQueue([start]);
+          break;
+        case 'linkedlist':
+          setLinkedList([start]);
+          break;
+      }
     }
     setAlgorithmState('running');
-  }, [algorithmState, start, resetVisualization]);
+  }, [algorithmState, start, resetVisualization, dataStructureType]);
 
   const pauseAlgorithm = useCallback(() => {
     setAlgorithmState('paused');
@@ -186,16 +361,29 @@ export function useMazeSolver(initialSize = 10) {
     if (algorithmState === 'idle') {
       resetVisualization();
       visitedRef.current.add(posToKey(start));
-      setStack([start]);
       startTimeRef.current = Date.now();
       setStats(prev => ({ ...prev, cellsVisited: 1 }));
+      
+      // Initialize based on data structure type
+      switch (dataStructureType) {
+        case 'stack':
+          setStack([start]);
+          break;
+        case 'queue':
+          setQueue([start]);
+          break;
+        case 'linkedlist':
+          setLinkedList([start]);
+          break;
+      }
+      
       setAlgorithmState('paused');
       return;
     }
     if (algorithmState === 'paused') {
       step();
     }
-  }, [algorithmState, start, resetVisualization, step]);
+  }, [algorithmState, start, resetVisualization, step, dataStructureType]);
 
   const reset = useCallback(() => {
     if (intervalRef.current) {
@@ -274,6 +462,8 @@ export function useMazeSolver(initialSize = 10) {
     setCellStates(newCellStates);
     visitedRef.current = new Set();
     setStack([]);
+    setQueue([]);
+    setLinkedList([]);
     setStats({
       stepsTaken: 0,
       backtracks: 0,
@@ -305,6 +495,8 @@ export function useMazeSolver(initialSize = 10) {
     setCellStates(newCellStates);
     visitedRef.current = new Set();
     setStack([]);
+    setQueue([]);
+    setLinkedList([]);
     setStats({
       stepsTaken: 0,
       backtracks: 0,
@@ -345,12 +537,31 @@ export function useMazeSolver(initialSize = 10) {
     loadPreset(MAZE_PRESETS[0]);
   }, []);
 
+  // Get current data structure based on type
+  const getCurrentDataStructure = () => {
+    switch (dataStructureType) {
+      case 'stack':
+        return stack;
+      case 'queue':
+        return queue;
+      case 'linkedlist':
+        return linkedList;
+      default:
+        return stack;
+    }
+  };
+
   return {
     grid,
     cellStates,
     start,
     end,
     stack,
+    queue,
+    linkedList,
+    dataStructureType,
+    setDataStructureType,
+    currentDataStructure: getCurrentDataStructure(),
     algorithmState,
     speed,
     stats,

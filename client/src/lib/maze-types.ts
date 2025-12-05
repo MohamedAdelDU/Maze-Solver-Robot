@@ -44,3 +44,20 @@ export type MazeStats = {
   pathLength: number;
   timeElapsed: number;
 };
+
+// أنواع البنيات البيانات
+export type DataStructureType = 'stack' | 'queue' | 'linkedlist';
+
+// عقدة Linked List
+export type LinkedListNode = {
+  position: Position;
+  next: LinkedListNode | null;
+  id: string;
+};
+
+// Queue structure
+export type QueueData = {
+  items: Position[];
+  front: number; // index of front element
+  rear: number;  // index of rear element
+};

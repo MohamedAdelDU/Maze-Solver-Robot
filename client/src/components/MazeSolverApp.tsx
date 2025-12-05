@@ -3,6 +3,9 @@ import { MazeGrid } from './MazeGrid';
 import { ControlPanel } from './ControlPanel';
 import { StatsDashboard } from './StatsDashboard';
 import { StackVisualization } from './StackVisualization';
+import { QueueVisualization } from './QueueVisualization';
+import { LinkedListVisualization } from './LinkedListVisualization';
+import { DataStructureSelector } from './DataStructureSelector';
 import { PresetSelector } from './PresetSelector';
 import { Legend } from './Legend';
 import { ThemeToggle } from './ThemeToggle';
@@ -22,6 +25,11 @@ export function MazeSolverApp() {
   const {
     cellStates,
     stack,
+    queue,
+    linkedList,
+    dataStructureType,
+    setDataStructureType,
+    currentDataStructure,
     algorithmState,
     speed,
     stats,
@@ -38,7 +46,19 @@ export function MazeSolverApp() {
   } = useMazeSolver(10);
 
   const isEditing = algorithmState === 'idle';
-  const currentPosition = stack.length > 0 ? stack[stack.length - 1] : null;
+  // Get current position based on data structure type
+  const currentPosition = (() => {
+    if (currentDataStructure.length === 0) return null;
+    switch (dataStructureType) {
+      case 'stack':
+      case 'linkedlist':
+        return currentDataStructure[currentDataStructure.length - 1];
+      case 'queue':
+        return currentDataStructure[0]; // Front of queue
+      default:
+        return currentDataStructure[currentDataStructure.length - 1];
+    }
+  })();
 
   return (
     <div className="min-h-screen bg-background">
@@ -50,7 +70,11 @@ export function MazeSolverApp() {
             </div>
             <div>
               <h1 className="text-xl font-bold">Maze Solver Robot</h1>
-              <p className="text-xs text-muted-foreground">DFS Pathfinding Visualization</p>
+              <p className="text-xs text-muted-foreground">
+                {dataStructureType === 'stack' && 'DFS Pathfinding Visualization'}
+                {dataStructureType === 'queue' && 'BFS Pathfinding Visualization'}
+                {dataStructureType === 'linkedlist' && 'Linked List Traversal Visualization'}
+              </p>
             </div>
           </div>
           
@@ -70,17 +94,21 @@ export function MazeSolverApp() {
                   <DialogDescription asChild>
                     <div className="space-y-4 text-left mt-4">
                       <div>
-                        <h4 className="font-semibold text-foreground mb-1">DFS Algorithm</h4>
-                        <p className="text-sm">
-                          Depth-First Search explores paths as deeply as possible before backtracking. 
-                          It uses a stack to remember positions for backtracking when hitting dead ends.
+                        <h4 className="font-semibold text-foreground mb-1">Data Structures</h4>
+                        <p className="text-sm mb-2">
+                          Choose between different data structures to see how they affect pathfinding:
                         </p>
+                        <ul className="text-sm space-y-1 list-disc list-inside ml-2">
+                          <li><strong>Stack (DFS):</strong> Explores deep paths first, uses LIFO</li>
+                          <li><strong>Queue (BFS):</strong> Explores level by level, uses FIFO</li>
+                          <li><strong>Linked List:</strong> Sequential traversal with node connections</li>
+                        </ul>
                       </div>
                       <div>
-                        <h4 className="font-semibold text-foreground mb-1">The Stack</h4>
+                        <h4 className="font-semibold text-foreground mb-1">How It Works</h4>
                         <p className="text-sm">
-                          The stack stores the robot's path. When stuck, we pop the last position 
-                          and try another direction - this is called backtracking.
+                          Each data structure affects how the algorithm explores the maze. 
+                          Watch how the visualization changes based on your selection!
                         </p>
                       </div>
                       <div>
@@ -105,6 +133,11 @@ export function MazeSolverApp() {
       <main className="max-w-screen-2xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_280px] gap-6">
           <aside className="space-y-6 order-2 lg:order-1">
+            <DataStructureSelector
+              selectedType={dataStructureType}
+              onSelectType={setDataStructureType}
+              disabled={!isEditing}
+            />
             <ControlPanel
               algorithmState={algorithmState}
               speed={speed}
@@ -139,7 +172,15 @@ export function MazeSolverApp() {
 
           <aside className="space-y-6 order-3">
             <StatsDashboard stats={stats} />
-            <StackVisualization stack={stack} />
+            {dataStructureType === 'stack' && (
+              <StackVisualization stack={stack} />
+            )}
+            {dataStructureType === 'queue' && (
+              <QueueVisualization queue={queue} />
+            )}
+            {dataStructureType === 'linkedlist' && (
+              <LinkedListVisualization nodes={linkedList} />
+            )}
           </aside>
         </div>
       </main>
