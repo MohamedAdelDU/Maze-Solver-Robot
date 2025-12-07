@@ -1,0 +1,15 @@
+[build]
+  # Build command - build only the client (frontend)
+  command = "npm run build:client"
+  # Directory to publish (Netlify will serve the static files)
+  publish = "dist/public"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Redirect all routes to index.html for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
